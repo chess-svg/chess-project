@@ -2,37 +2,75 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>My Chess Page</title>
-</head>
-<body>
-  <h1>♟ My Chess Page ♟</h1>
-  <p>Welcome! This is my chess board.</p>
+  <title>Chess vs Stockfish</title>
 
-  <table border="1" cellspacing="0" cellpadding="20">
-    <tr>
-      <td>♜</td><td>♞</td><td>♝</td><td>♛</td><td>♚</td><td>♝</td><td>♞</td><td>♜</td>
-    </tr>
-    <tr>
-      <td>♟</td><td>♟</td><td>♟</td><td>♟</td><td>♟</td><td>♟</td><td>♟</td><td>♟</td>
-    </tr>
-    <tr>
-      <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
-    </tr>
-    <tr>
-      <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
-    </tr>
-    <tr>
-      <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
-    </tr>
-    <tr>
-      <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
-    </tr>
-    <tr>
-      <td>♙</td><td>♙</td><td>♙</td><td>♙</td><td>♙</td><td>♙</td><td>♙</td><td>♙</td>
-    </tr>
-    <tr>
-      <td>♖</td><td>♘</td><td>♗</td><td>♕</td><td>♔</td><td>♗</td><td>♘</td><td>♖</td>
-    </tr>
-  </table>
+  <!-- 체스판 라이브러리 -->
+  <link rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css"/>
+
+  <script src="https://cdn.jsdelivr.net/npm/chess.js@0.13.4/chess.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+
+  <style>
+    #board {
+      width: 400px;
+      margin: 20px auto;
+    }
+  </style>
+</head>
+
+<body>
+
+<h2 style="text-align:center">♟ Play vs Stockfish ♟</h2>
+
+<div id="board"></div>
+
+<script>
+  const game = new Chess();
+  const board = Chessboard('board', {
+    draggable: true,
+    position: 'start',
+    onDrop: onDrop
+  });
+
+  const engine = new Worker("stockfish-18-lite-single.js");
+
+  engine.postMessage("uci");
+  engine.postMessage("isready");
+
+  engine.onmessage = function(event) {
+    const line = event.data;
+
+    if (line.startsWith("bestmove")) {
+      const move = line.split(" ")[1];
+
+      game.move({
+        from: move.substring(0,2),
+        to: move.substring(2,4),
+        promotion: 'q'
+      });
+
+      board.position(game.fen());
+    }
+  };
+
+  function onDrop(source, target) {
+    const move = game.move({
+      from: source,
+      to: target,
+      promotion: 'q'
+    });
+
+    if (move === null) return 'snapback';
+
+    board.position(game.fen());
+
+    setTimeout(() => {
+      engine.postMessage("position fen " + game.fen());
+      engine.postMessage("go depth 10");
+    }, 200);
+  }
+</script>
+
 </body>
 </html>
