@@ -1,78 +1,120 @@
-index.html
-stockfish-18-lite-single.js
-stockfish-18-lite-single.wasm<!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <title>Chess vs Stockfish</title>
 
-  <!-- 체스판 라이브러리 -->
-  <link rel="stylesheet"
-    href="https://cdn.jsdelivr.net/npm/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css"/>
 
   <script src="https://cdn.jsdelivr.net/npm/chess.js@0.13.4/chess.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
 
   <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin-top: 20px;
+    }
+
     #board {
       width: 400px;
       margin: 20px auto;
     }
+
+    #status {
+      margin-top: 20px;
+      font-weight: bold;
+    }
+
+    button {
+      margin-top: 10px;
+      padding: 8px 14px;
+      font-size: 16px;
+      cursor: pointer;
+    }
   </style>
 </head>
-
 <body>
+  <h1>Chess vs Stockfish</h1>
 
-<h2 style="text-align:center">♟ Play vs Stockfish ♟</h2>
+  <div id="board"></div>
 
-<div id="board"></div>
+  <div id="status">Your move: White</div>
+  <button onclick="resetGame()">새 게임</button>
 
-<script>
-  const game = new Chess();
-  const board = Chessboard('board', {
-    draggable: true,
-    position: 'start',
-    onDrop: onDrop
-  });
+  <script>
+    var game = new Chess();
 
-  const engine = new Worker("stockfish-18-lite-single.js");
+    var board = Chessboard('board', {
+      draggable: true,
+      position: 'start',
+      onDrop: onDrop
+    });
 
-  engine.postMessage("uci");
-  engine.postMessage("isready");
+    const stockfish = new Worker("https://cdn.jsdelivr.net/npm/stockfish/stockfish.js");
 
-  engine.onmessage = function(event) {
-    const line = event.data;
+    stockfish.onmessage = function(event) {
+      const message = event.data;
+      console.log("Stockfish:", message);
 
-    if (line.startsWith("bestmove")) {
-      const move = line.split(" ")[1];
+      if (message.startsWith("bestmove")) {
+        const move = message.split(" ")[1];
 
-      game.move({
-        from: move.substring(0,2),
-        to: move.substring(2,4),
+        if (move && move !== "(none)") {
+          game.move({
+            from: move.substring(0, 2),
+            to: move.substring(2, 4),
+            promotion: 'q'
+          });
+
+          board.position(game.fen());
+          updateStatus();
+        }
+      }
+    };
+
+    function onDrop(source, target) {
+      var move = game.move({
+        from: source,
+        to: target,
         promotion: 'q'
       });
 
-      board.position(game.fen());
+      if (move === null) return 'snapback';
+
+      updateStatus();
+
+      if (!game.game_over()) {
+        window.setTimeout(makeEngineMove, 250);
+      }
     }
-  };
 
-  function onDrop(source, target) {
-    const move = game.move({
-      from: source,
-      to: target,
-      promotion: 'q'
-    });
+    function makeEngineMove() {
+      stockfish.postMessage("position fen " + game.fen());
+      stockfish.postMessage("go depth 10");
+    }
 
-    if (move === null) return 'snapback';
+    function updateStatus() {
+      let status = "";
 
-    board.position(game.fen());
+      if (game.in_checkmate()) {
+        status = "체크메이트";
+      } else if (game.in_draw()) {
+        status = "무승부";
+      } else {
+        status = game.turn() === 'w' ? "Your move: White" : "Stockfish thinking...";
+      }
 
-    setTimeout(() => {
-      engine.postMessage("position fen " + game.fen());
-      engine.postMessage("go depth 10");
-    }, 200);
-  }
-</script>
+      document.getElementById("status").innerText = status;
+    }
 
+    function resetGame() {
+      game.reset();
+      board.start();
+      updateStatus();
+    }
+
+    updateStatus();
+  </script>
 </body>
 </html>
